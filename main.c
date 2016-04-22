@@ -1,35 +1,41 @@
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
-#define BACKLOG 4
-#define PORT 3000
+#define PORT "3490"
+#define BACKLOG 5
 
-int main()
+int main(int argc, char *argv[])
 {
-  int s, c, b;
-  struct sockaddr_in sa;
-  FILE *client;
+  struct addrinfo hints, *res;
+  char *message;
+  struct sockaddr *server_address, *client_address;
+  int server_socket, client_socket, yes = 1, server_address_len,
+    client_address_size;
 
-  bzero(&sa, sizeof(sa));
-  sa.sin_family = AF_INET;
-  sa.sin_port = htons(PORT);
-  
-  s = socket(AF_INET, SOCK_STREAM, 0);
-  if (INADDR_ANY)
-    sa.sin_addr.s_addr = htonl(INADDR_ANY);
-  bind(s, (struct sockaddr *) &sa, sizeof(sa));
-  listen(s, BACKLOG);
-  b = sizeof(sa);
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
 
+  getaddrinfo(NULL, PORT, &hints, &res);
+  server_socket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+  setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+  server_address = res->ai_addr;
+  server_address_len = res->ai_addrlen;
+  bind(server_socket, server_address, server_address_len);
+  listen(server_socket, BACKLOG);
+  client_address = NULL;
+  client_address_size = sizeof(client_address);
   while (1) {
-    c = accept(s, (struct sockaddr *) &sa, &b);
-    client = fdopen(c, "w");
-    fprintf(client, "This server is working.\n");
-    fclose(client);
+    client_socket = accept(server_socket, client_address, &client_address_size);
+    message = "Hello, World\n";
+    send(client_socket, message, strlen(message), 0);
+    close(client_socket);
   }
+
   return 0;
 }
