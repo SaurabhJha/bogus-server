@@ -1,5 +1,4 @@
 #include <arpa/inet.h>
-#include <errno.h>
 #include <netdb.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -8,30 +7,34 @@
 #include <sys/types.h>
 #include <string.h>
 #include <unistd.h>
+
 #include "server.h"
+#include "signal_handlers.h"
 
-#define BACKLOG 1024
-#define PORT "3490"
-
-void interrupt_signal_handler(int signum)
-{
-  fprintf(stdout, "Caught signal %d: %s\n", signum, strsignal(signum));
-  fprintf(stdout, "Closing socket %d\n", server_socket);
-  if (close(server_socket) < 0) {
-    perror("Failed to close server_socke (ignoring)\n");
-  }
-  exit(0);
-}
 
 int main(int argc, char *argv[])
 {
+  struct sigaction sa_chld, sa_int;
   struct addrinfo hints, *res, *p;
   struct sockaddr *client_address;
   socklen_t *client_address_len;
   int status, client_socket, yes = 1;
   char *message;
 
-  signal(SIGINT, interrupt_signal_handler);
+  sa_int.sa_handler = interrupt_signal_handler;
+  sigemptyset(&sa_int.sa_mask);
+  if (sigaction(SIGINT, &sa_int, NULL) == -1) {
+    perror("sigaction SIGNINT");
+    exit(1);
+  }
+
+  sa_chld.sa_handler = child_signal_handler;
+  sigemptyset(&sa_chld.sa_mask);
+  sa_chld.sa_flags = SA_RESTART;
+  if (sigaction(SIGCHLD, &sa_chld, NULL) == -1) {
+    perror("sigaction SIGCHLD");
+    exit(1);
+  }
 
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
@@ -79,11 +82,17 @@ int main(int argc, char *argv[])
     } else {
       fprintf(stdout, "Got a new connection.\n");
     }
-    message = "Howdy?\n"; // What if this message is dynamic?
-    send(client_socket, message, strlen(message), 0);
-    close(client_socket);
-    free(client_address);
-    free(client_address_len);
+    if (fork()) { /* parent process */
+      close(client_socket);
+      free(client_address);
+      free(client_address_len);
+    } else { /* child process */
+      close(server_socket);
+      message = "Howdy?\n"; /* What if this message is dynamic? */
+      send(client_socket, message, strlen(message), 0);
+      close(client_socket);
+      exit(0);
+    }
   }
 
   close(server_socket);
