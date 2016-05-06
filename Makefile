@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-ggdb3 -c -Wall
 LDFLAGS=-pthread
-SOURCES=main.c signal_handlers.c
+SOURCES=main.c signal_handlers.c server.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=server
 

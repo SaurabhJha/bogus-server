@@ -14,64 +14,13 @@
 
 int main(int argc, char *argv[])
 {
-  struct sigaction sa_chld, sa_int;
-  struct addrinfo hints, *res, *p;
   struct sockaddr *client_address;
   socklen_t *client_address_len;
-  int status, client_socket, yes = 1;
+  int client_socket;
   char *message;
 
-  sa_int.sa_handler = interrupt_signal_handler;
-  sigemptyset(&sa_int.sa_mask);
-  if (sigaction(SIGINT, &sa_int, NULL) == -1) {
-    perror("sigaction SIGNINT");
-    exit(1);
-  }
-
-  sa_chld.sa_handler = child_signal_handler;
-  sigemptyset(&sa_chld.sa_mask);
-  sa_chld.sa_flags = SA_RESTART;
-  if (sigaction(SIGCHLD, &sa_chld, NULL) == -1) {
-    perror("sigaction SIGCHLD");
-    exit(1);
-  }
-
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
-
-  if ((status = getaddrinfo(NULL, PORT, &hints, &res)) != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
-    return 2;
-  }
-
-  for (p = res; p != NULL; p = p->ai_next) {
-    server_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-    if (server_socket == -1) {
-      fprintf(stderr, "Not able to create server socket.\n");
-    }
-
-    if (setsockopt(server_socket, SOL_SOCKET,
-                   SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-      fprintf(stderr, "Not able to set socket options.\n");
-    }
-
-    if (bind(server_socket, p->ai_addr, p->ai_addrlen) == -1) {
-      close(server_socket);
-      fprintf(stderr, "Not able to bind server socket to host address.\n");
-    }
-
-    if (listen(server_socket, BACKLOG) == -1) {
-      fprintf(stderr, "Not able to listen on the socket.\n");
-      close(server_socket);
-    }
-
-    break;
-  }
-
-  freeaddrinfo(res);
-
+  register_signal_handlers();
+  server_socket = create_tcp_listener();
   client_address = NULL;
   client_address_len = 0;
 
